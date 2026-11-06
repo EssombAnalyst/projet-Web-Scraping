@@ -71,9 +71,13 @@ def verifier_python():
 def delai_du_site(session, url):
     """Pause entre deux requêtes : le plus grand entre le Crawl-delay lu par
     robotparser, celui de DELAI_MINIMUM et 1 s (règle du cours)."""
+    # Récupère l'User-Agent configuré dans la session
     agent = session.headers["User-Agent"]
+    # Vérifie les permissions dans robots.txt et récupère le crawl-delay officiel
     _, _, crawl_delay = ws.robots_autorise(url, agent, session)
+    # Cherche si on a un délai minimum forcé pour ce domaine (ex: 10s)
     minimum = DELAI_MINIMUM.get(urlparse(url).netloc, 1.0)
+    # On prend la valeur la plus restrictive
     return max(1.0, minimum, crawl_delay or 0)
 
 
@@ -85,11 +89,15 @@ def nombre_annonce(texte):
 
 def prix_min_max(texte):
     """« $260.00- $330.00 » -> (260.0, 330.0)   « 59,99 $ » -> (59.99, 59.99)"""
+    # Sépare le texte s'il y a un tiret ou le mot "à" (fourchette de prix)
     morceaux = re.split(r"\s*-\s*|\s+à\s+", texte or "")
+    # Convertit chaque morceau en nombre flottant
     nombres = [ws.prix_en_nombre(m) for m in morceaux]
+    # Filtre les valeurs None (e.g. si un texte n'était pas un prix)
     nombres = [n for n in nombres if n is not None]
     if not nombres:
         return None, None  # par exemple « Prix à confirmer »
+    # Retourne la borne basse et la borne haute
     return min(nombres), max(nombres)
 
 
@@ -118,14 +126,21 @@ def nettoyer_velos(df):
     """Nettoyage des vélos (cas H et suivants). Ne contacte aucun site :
     etape3_nettoyage.py peut le refaire sur un CSV déjà collecté."""
     df = df.copy()
+    # Nettoyage des espaces et caractères spéciaux dans les colonnes textuelles
     for colonne in TEXTES:
         df[colonne] = df[colonne].fillna("").astype(str).map(ws.nettoyer_chaine)
+    
+    # Supprime le tiret final souvent présent dans les noms
     df["nom"] = df["nom"].str.rstrip(" -")  # « Felt VR 60 - » -> « Felt VR 60 »
+    
+    # Enrichit la colonne marque en cherchant dans le nom si elle est vide
     df["marque"] = [
         trouver_marque(marque + " " + nom, marque)
         for marque, nom in zip(df["marque"], df["nom"])
     ]
-    # SAP range des roues de trottinette dans « Vélo » : ce ne sont pas des vélos
+    
+    # Filtrage spécifique pour SAP : exclure les accessoires qui ne sont pas des vélos
+    # SAP range parfois des roues dans la catégorie vélos.
     nom = df["nom"].str.lower()
     piece = (
         (df["entreprise"] == "SAP Outaouais")
@@ -133,10 +148,17 @@ def nettoyer_velos(df):
         & ~nom.str.contains("vélo")
     )
     df = df[~piece]
-    df = df.drop_duplicates(subset=["entreprise", "url"])  # même adresse = même vélo
+    
+    # Supprime les doublons basés sur l'URL (même produit vu dans plusieurs catégories)
+    df = df.drop_duplicates(subset=["entreprise", "url"])
+    
+    # Conversion des prix en nombres pour permettre les calculs
     df["prix"] = pd.to_numeric(df["prix"], errors="coerce")
     df["prix_regulier"] = pd.to_numeric(df["prix_regulier"], errors="coerce")
+    # Calcule si le produit est en promotion
     df["en_solde"] = df["prix_regulier"] > df["prix"]
+    
+    # Trie par entreprise, puis catégorie, puis prix croissant
     return df.sort_values(["entreprise", "categorie", "prix"])[COLONNES_VELOS]
 
 
@@ -209,20 +231,26 @@ CATEGORIES_VELOZOPHIE = [
 def extraire_velozophie(sp, url_page):
     """Une ligne par carte div.grid-product__wrap."""
     lignes = []
+    # Parcourt chaque bloc de produit dans la grille
     for carte in sp.select("div.grid-product__wrap"):
         lien = carte.select_one("a.grid-product__title")
         nom = ws.texte(carte, ".grid-product__title-inner")
-        etiquette = ws.texte(carte, ".grid-product__label")  # Nouveau!, Démo!...
+        # Récupère l'étiquette (ex: "Démo", "Nouveau", "Épuisé")
+        etiquette = ws.texte(carte, ".grid-product__label")
         prix = ws.texte(carte, ".grid-product__price-value")
+        # Prix barré s'il existe
         prix_barre = ws.texte(carte, ".grid-product__price-compare-values")
+        
         lignes.append(
             {
                 "entreprise": "Vélozophie",
-                "marque": "",  # cherchée dans le nom par nettoyer_velos()
+                "marque": "",  # La marque sera extraite du nom plus tard
                 "nom": nom,
                 "prix": ws.prix_en_nombre(prix),
                 "prix_regulier": ws.prix_en_nombre(prix_barre),
+                # Détecte si c'est un vélo de démo ou d'occasion via le nom ou l'étiquette
                 "etat": etat_du_velo(nom + " " + etiquette),
+                # Marque comme épuisé si l'étiquette contient "puisé"
                 "disponibilite": "épuisé" if "puisé" in etiquette else "",
                 "remarque": "",
                 "url": lien["href"] if lien else "",
@@ -232,18 +260,23 @@ def extraire_velozophie(sp, url_page):
 
 
 def collecter_velozophie(session):
+    # Calcule le délai nécessaire pour respecter robots.txt (10s pour ce site)
     delai = delai_du_site(session, VELOZOPHIE)
     velos, total = [], None
+    # Parcourt chaque catégorie définie dans CATEGORIES_VELOZOPHIE
     for categorie, fin in CATEGORIES_VELOZOPHIE:
         r = ws.obtenir(session, VELOZOPHIE + fin, delai=delai)
-        if r is None:  # 404 : catégorie supprimée
+        if r is None:  # Saute si la page est introuvable (ex: 404)
             continue
         sp = ws.soupe(r)
+        # Extrait les vélos de la page courante
         for ligne in extraire_velozophie(sp, r.url):
             ligne["categorie"] = categorie
             velos.append(ligne)
+        # Récupère le nombre total de vélos annoncé par le site (pour le journal)
         if categorie == "Vélos":
             total = nombre_annonce(ws.texte(sp, ".pager__count-pages"))
+            
     remarques = (
         f"{len(CATEGORIES_VELOZOPHIE)} catégories, délai {delai:.0f} s ; "
         f"le site annonce {total} vélos ; pagination en JavaScript non suivie"
@@ -263,12 +296,16 @@ SOUS_CATEGORIE = re.compile(r"https://www\.primeauvelo\.com/fr_ca/velos/[\w-]+/[
 def sous_categories_primeau(sp):
     """(nom, url) des liens du menu à deux niveaux sous /velos/, sans « ? »."""
     noms = {}
+    # Cherche tous les liens vers les catégories de vélos
     for a in sp.select("a[href^='https://www.primeauvelo.com/fr_ca/velos/']"):
         url = a["href"]
-        nom = re.sub(r"\s*\d+$", "", ws.texte(a))  # « Enduro 27 » -> « Enduro »
+        # Nettoie le nom (ex: enlève les nombres à la fin comme "Enduro 27")
+        nom = re.sub(r"\s*\d+$", "", ws.texte(a))
+        # On évite les URLs avec des paramètres "?" (interdites par robots.txt)
         if "?" not in url and len(nom) > len(noms.get(url, "")):
             noms[url] = nom
     resultat = []
+    # Construit le chemin complet de la catégorie (Parent / Enfant)
     for url, nom in noms.items():
         if SOUS_CATEGORIE.fullmatch(url):
             parent = noms.get(url.rsplit("/", 1)[0], "")
@@ -279,12 +316,15 @@ def sous_categories_primeau(sp):
 def extraire_primeau(sp, url_page):
     """Une ligne par li.product-item. Les prix sont des nombres (data-price-amount)."""
     lignes = []
+    # Parcourt chaque élément de produit dans la liste
     for carte in sp.select("li.product-item"):
         lien = carte.select_one("a.product-item-link")
+        # Les prix sont stockés dans des attributs data-price-amount
         prix = carte.select_one("[data-price-type=finalPrice]")
         ancien = carte.select_one("[data-price-type=oldPrice]")
         nom = ws.texte(lien)
         marque = ws.texte(carte, ".product-item-manufacturer")
+        # Certains prix sont indicatifs ("à partir de")
         a_partir_de = carte.select_one(".pdp-tile-starting-at") is not None
         lignes.append(
             {
@@ -303,14 +343,18 @@ def extraire_primeau(sp, url_page):
 
 
 def collecter_primeau(session):
+    # Respecte le délai de 10s imposé par robots.txt
     delai = delai_du_site(session, PRIMEAU)
     r = ws.obtenir(session, PRIMEAU, delai=delai)  # page de départ
     if r is None:
         return [], "page de départ introuvable (404)"
     sp_depart = ws.soupe(r)
+    # Récupère le nombre total de vélos via le compteur de la barre d'outils
     total = nombre_annonce(ws.texte(sp_depart, ".toolbar-amount"))
+    # Détecte automatiquement les sous-catégories pour avoir des libellés précis
     sous_categories = sous_categories_primeau(sp_depart)
     velos = []
+    # Scrape la première page de chaque sous-catégorie
     for categorie, url in sous_categories:
         r = ws.obtenir(session, url, delai=delai)
         if r is None:
@@ -318,7 +362,7 @@ def collecter_primeau(session):
         for ligne in extraire_primeau(ws.soupe(r), r.url):
             ligne["categorie"] = categorie
             velos.append(ligne)
-    # Page de départ en dernier : un vélo en double garde sa catégorie précise
+    # Complète avec la page de départ (contient les nouveaux arrivages par ex)
     for ligne in extraire_primeau(sp_depart, PRIMEAU):
         ligne["categorie"] = "Vélos"
         velos.append(ligne)
@@ -349,36 +393,43 @@ DUREES = {
 def extraire_expeditions(sp, url_page):
     """Une ligne par carte div.product-grid-item (WooCommerce, thème WoodMart)."""
     lignes = []
+    # Parcourt les produits WooCommerce
     for carte in sp.select("div.product-grid-item"):
         lien = carte.select_one(".wd-entities-title a")
         nom = ws.texte(lien)
+        # Récupère toutes les catégories associées au produit
         categories = [ws.texte(a) for a in carte.select(".wd-product-cats a")]
+        # Gestion des prix barrés (ins = prix actuel, del = ancien prix)
         solde = carte.select_one("span.price ins .woocommerce-Price-amount")
         barre = carte.select_one("span.price del .woocommerce-Price-amount")
+        # Récupère tous les montants (parfois plusieurs pour les variations)
         montants = [
             ws.prix_en_nombre(ws.texte(m))
             for m in carte.select("span.price .woocommerce-Price-amount")
         ]
         montants = [m for m in montants if m is not None]
         remarque = ""
-        if solde:  # prix barré (del) et prix en solde (ins)
+        if solde:  # Produit en promotion
             prix = ws.prix_en_nombre(ws.texte(solde))
             prix_regulier = ws.prix_en_nombre(ws.texte(barre))
         else:
+            # Si pas de solde, on prend le prix minimum trouvé
             prix = min(montants) if montants else None
             prix_regulier = None
             if len(montants) > 1:
                 remarque = "fourchette de prix"
+        # Filtre les catégories pour ne garder que celles liées aux types de vélos
         types = [c for c in categories if c in TYPES_EXPEDITIONS]
         lignes.append(
             {
                 "entreprise": "Expéditions Wakefield",
                 "categorie": ", ".join(types),
-                "marque": "",  # cherchée dans le nom par nettoyer_velos()
+                "marque": "",  # La marque sera extraite du nom
                 "nom": nom,
                 "prix": prix,
                 "prix_regulier": prix_regulier,
                 "etat": etat_du_velo(nom + " " + " ".join(categories)),
+                # Disponibilité basée sur la classe CSS de WooCommerce
                 "disponibilite": (
                     "en stock" if "instock" in carte["class"] else "épuisé"
                 ),
@@ -467,9 +518,11 @@ SAP_VELOS = SAP + "sports/velo/?categorie=203385874"  # bouton « Vélo »
 
 def extraire_sap(sp, url_page):
     """Une ligne par carte a.product-card (24 au plus par page)."""
-    if "categorie=" not in url_page:  # garde-fou : on reste dans « Vélo »
+    # Vérification de sécurité pour ne pas sortir de la catégorie "Vélo"
+    if "categorie=" not in url_page:
         return []
     lignes = []
+    # Parcourt chaque carte de produit
     for carte in sp.select("a.product-card"):
         nom = ws.texte(carte, "h3")
         marque = ws.texte(carte, ".product-card-brand")
@@ -479,11 +532,13 @@ def extraire_sap(sp, url_page):
                 "categorie": "Vélo",
                 "marque": marque,
                 "nom": nom,
+                # Extrait le prix dans la balise strong
                 "prix": ws.prix_en_nombre(ws.texte(carte, "strong.price")),
                 "prix_regulier": None,
                 "etat": etat_du_velo(nom),
                 "disponibilite": ws.texte(carte, ".product-card-availability"),
                 "remarque": "",
+                # Reconstruit l'URL complète car le lien est relatif
                 "url": urljoin(url_page, carte["href"]),
             }
         )
@@ -498,8 +553,10 @@ def collecter_velos_sap(session):
 def extraire_atelier_sap(sp, url_page):
     """Liste de prix « atelier-velo » : un article.price-item par service."""
     lignes = []
+    # Cible spécifiquement la liste de prix de l'atelier vélo
     for service in sp.select("div[data-price-list='atelier-velo'] article.price-item"):
         prix_texte = ws.texte(service, ".service-price")
+        # Gère les fourchettes de prix si présentes
         prix_min, prix_max = prix_min_max(prix_texte)
         lignes.append(
             {
@@ -585,16 +642,21 @@ SOURCES = [
 
 def sauvegarder(velos, atelier):
     """Nettoyage final, puis un fichier CSV par type de données."""
+    # Création du DataFrame pour les vélos
     df = pd.DataFrame(velos, columns=COLONNES_VELOS)
     df["date_collecte"] = AUJOURDHUI
     avant = len(df)
+    # Application des règles de nettoyage (marques, doublons, etc.)
     df = nettoyer_velos(df)
+    # Sauvegarde dans le fichier CSV final
     ws.sauvegarder_csv(df, FICHIER_VELOS)
 
+    # Création du DataFrame pour l'atelier et la location
     services = pd.DataFrame(atelier, columns=COLONNES_ATELIER)
     services["date_collecte"] = AUJOURDHUI
     ws.sauvegarder_csv(services, FICHIER_ATELIER)
 
+    # Affiche un résumé statistique dans le terminal
     print("\n===== Résumé =====")
     print(
         f"Vélos : {len(df)} (lignes retirées, doublons et pièces : {avant - len(df)})"
@@ -606,25 +668,35 @@ def sauvegarder(velos, atelier):
 
 
 def main():
+    # Vérifications de base (environnement et configuration)
     verifier_python()
     if "exemple.ca" in ws.USER_AGENT:
         raise SystemExit("Mettez votre courriel dans USER_AGENT (projet_scraping.py).")
+    
+    # Prépare le dossier de résultats
     DOSSIER.mkdir(exist_ok=True)
     reparer_entete_journal()
+    
+    # Initialise la session HTTP partagée
     session = ws.creer_session(ws.USER_AGENT)
     velos, atelier = [], []
 
+    # Boucle sur toutes les sources configurées (vélos et ateliers)
     for fichier, fonction, url, cas, technique in SOURCES:
         print(f"\n===== {fonction.__name__} =====")
         try:
+            # Exécute la fonction de collecte spécifique
             lignes, remarques = fonction(session)
             statut = 200
-        except Exception as e:  # on note l'erreur et on passe à la source suivante
+        except Exception as e:
+            # En cas d'erreur, on logue mais on continue avec la source suivante
             lignes, remarques, statut = [], f"ERREUR {type(e).__name__} : {e}", ""
             print(remarques)
+            
+        # Accumule les données dans la bonne liste (velos ou atelier)
         if fichier == "velos":
             velos.extend(lignes)
-            nb = len({ligne["url"] for ligne in lignes})  # vélos différents
+            nb = len({ligne["url"] for ligne in lignes})  # Compte les vélos uniques via URL
             remarques = (
                 f"{len(lignes)} lignes lues, {nb} vélos différents ; {remarques}"
             )
@@ -633,9 +705,11 @@ def main():
             atelier.extend(lignes)
             nb = len(lignes)
             chemin = FICHIER_ATELIER
+            
+        # Ajoute une entrée détaillée dans le journal de bord
         noter(url, statut, cas, technique, nb, str(chemin), remarques)
 
-    # Vélozophie : tarifs d'atelier dans une image, rien à collecter en HTML
+    # Note spéciale pour Vélozophie (données non collectables techniquement)
     noter(
         "https://www.velozophie.ca/entretiens-complets/",
         "",
@@ -645,6 +719,8 @@ def main():
         "",
         "tarifs dans une image (MAP-FR-scaled.jpg) et un PDF (MAP-FR.pdf)",
     )
+    
+    # Nettoyage et sauvegarde finale
     sauvegarder(velos, atelier)
     print("\nJournal :", DOSSIER / "journal_tests.csv")
 

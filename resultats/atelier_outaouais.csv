@@ -1,0 +1,29 @@
+﻿entreprise,type,service,duree,prix_min,prix_max,prix_texte,description,url,date_collecte
+Expéditions Wakefield,atelier,Mini-Rider Tune-up,,60.0,60.0,$60.00,"Basic Tune-up for Kids bikes with 24"" wheels or smaller",https://expeditionswakefield.com/service/,2026-11-06
+Expéditions Wakefield,atelier,Regular Tune-up,,80.0,80.0,$80.00,Basic Tune-up for Adult Bikes,https://expeditionswakefield.com/service/,2026-11-06
+Expéditions Wakefield,atelier,Squeaky Clean,,155.0,155.0,$155.00,Recommended annually to preserve and add life to your drivetrain,https://expeditionswakefield.com/service/,2026-11-06
+Expéditions Wakefield,atelier,Complete Overhaul,,260.0,330.0,$260.00- $330.00,"The closest thing to a new bike; recommended annually for high mileage riders and to preserve the life of your bike. Road, Gravel and Hardtail MTB's $260.00; Full Suspension MTB's $330.00",https://expeditionswakefield.com/service/,2026-11-06
+Expéditions Wakefield,location,Fat Bike,1 heure,35.0,35.0,$35,,https://expeditionswakefield.com/rentals/,2026-11-06
+Expéditions Wakefield,location,Fat Bike,3 heures,50.0,50.0,$50,,https://expeditionswakefield.com/rentals/,2026-11-06
+Expéditions Wakefield,location,Fat Bike,1 jour,90.0,90.0,$90,,https://expeditionswakefield.com/rentals/,2026-11-06
+Expéditions Wakefield,location,Fat Bike,2 jours,140.0,140.0,$140,,https://expeditionswakefield.com/rentals/,2026-11-06
+Expéditions Wakefield,location,Fat Bike,3 jours,200.0,200.0,$200,,https://expeditionswakefield.com/rentals/,2026-11-06
+Expéditions Wakefield,location,Fat Bike,4 jours,250.0,250.0,$250,,https://expeditionswakefield.com/rentals/,2026-11-06
+Expéditions Wakefield,location,Fat Bike,1 semaine,300.0,300.0,$300,,https://expeditionswakefield.com/rentals/,2026-11-06
+Expéditions Wakefield,location,Full Suspension MTB or Electric Hybrid,1 heure,45.0,45.0,$45,,https://expeditionswakefield.com/rentals/,2026-11-06
+Expéditions Wakefield,location,Full Suspension MTB or Electric Hybrid,3 heures,65.0,65.0,$65,,https://expeditionswakefield.com/rentals/,2026-11-06
+Expéditions Wakefield,location,Full Suspension MTB or Electric Hybrid,1 jour,120.0,120.0,$120,,https://expeditionswakefield.com/rentals/,2026-11-06
+Expéditions Wakefield,location,Full Suspension MTB or Electric Hybrid,2 jours,200.0,200.0,$200,,https://expeditionswakefield.com/rentals/,2026-11-06
+Expéditions Wakefield,location,Full Suspension MTB or Electric Hybrid,3 jours,280.0,280.0,$280,,https://expeditionswakefield.com/rentals/,2026-11-06
+Expéditions Wakefield,location,Full Suspension MTB or Electric Hybrid,4 jours,360.0,360.0,$360,,https://expeditionswakefield.com/rentals/,2026-11-06
+Expéditions Wakefield,location,Full Suspension MTB or Electric Hybrid,1 semaine,500.0,500.0,$500,,https://expeditionswakefield.com/rentals/,2026-11-06
+SAP Outaouais,atelier,Mise au point niveau 1,,59.99,59.99,"59,99 $",,https://sapoutaouais.com/fr/atelier/,2026-11-06
+SAP Outaouais,atelier,Mise au point niveau 2,,,,Prix à confirmer,,https://sapoutaouais.com/fr/atelier/,2026-11-06
+SAP Outaouais,atelier,Changement de câble,,14.99,14.99,"14,99 $",,https://sapoutaouais.com/fr/atelier/,2026-11-06
+SAP Outaouais,atelier,Changement de chaîne,,14.99,14.99,"14,99 $",,https://sapoutaouais.com/fr/atelier/,2026-11-06
+SAP Outaouais,atelier,Alignement des roues,,34.99,34.99,"34,99 $",,https://sapoutaouais.com/fr/atelier/,2026-11-06
+SAP Outaouais,atelier,Ajustement des freins,,29.99,29.99,"29,99 $",,https://sapoutaouais.com/fr/atelier/,2026-11-06
+SAP Outaouais,atelier,Ajustement de la transmission,,29.99,29.99,"29,99 $",,https://sapoutaouais.com/fr/atelier/,2026-11-06
+SAP Outaouais,atelier,Réparation ou changement de pneu,,19.99,19.99,"19,99 $",,https://sapoutaouais.com/fr/atelier/,2026-11-06
+SAP Outaouais,atelier,Entretien de frein hydraulique,,39.99,39.99,"39,99 $",,https://sapoutaouais.com/fr/atelier/,2026-11-06
+SAP Outaouais,atelier,Réparation diverse,,39.99,39.99,"39,99 $",,https://sapoutaouais.com/fr/atelier/,2026-11-06
